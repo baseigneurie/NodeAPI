@@ -1,0 +1,26 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "backend api",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "internal",
+    "api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/baseigneurie/NodeAPI"
+  },
+  "author": "Broc Seigneurie",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.16.0",
+    "es6-promise": "^4.0.5",
+    "express": "^4.14.0",
+    "mongoose": "^4.7.5",
+    "oracledb": "^1.12.2"
+  }
+}
