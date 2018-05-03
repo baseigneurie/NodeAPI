@@ -4,7 +4,7 @@
   "description": "backend api",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "nyc mocha --timeout=3000"
   },
   "keywords": [
     "internal",
@@ -12,15 +12,27 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/baseigneurie/NodeAPI"
+    "url": "git://github.com/baseigneurie/NodeAPI.git"
   },
   "author": "Broc Seigneurie",
   "license": "ISC",
   "dependencies": {
-    "body-parser": "^1.16.0",
+    "ad": "^0.3.2",
+    "async": "^2.6.0",
+    "body-parser": "^1.18.2",
     "es6-promise": "^4.0.5",
-    "express": "^4.14.0",
-    "mongoose": "^4.7.5",
+    "eslint": "^4.19.1",
+    "express": "^4.16.3",
+    "moment": "^2.18.1",
+    "moment-timezone": "^0.5.13",
+    "npm": "^6.0.0",
+    "nvm": "0.0.4",
     "oracledb": "^1.12.2"
+  },
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "chai-http": "^4.0.0",
+    "mocha": "^5.1.1",
+    "nyc": "^11.7.1"
   }
 }

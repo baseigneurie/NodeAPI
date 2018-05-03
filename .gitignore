@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+api_log_errors.txt
+npm-debug.log
+yarn-error.log
+.nyc_output/

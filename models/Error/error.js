@@ -1,16 +1,17 @@
-var error = {
-    title: "",
-    message: "",
-    status: 0
+const error = {
+    message: '',
+    title: '',
+    errCode: 0
 };
 
-function sendError(title, msg, code) {
+function createError(title, msg, code) {
     e = error;
     e.title = title;
     e.message = msg;
-    e.status = code;
+    e.errCode = (code ? code : -1);
     return e;
 }
 
-module.exports.errObj = error;
-module.exports.sendError = sendError;
+module.exports = {
+    createError: createError
+}

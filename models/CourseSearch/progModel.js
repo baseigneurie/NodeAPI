@@ -1,3 +1,5 @@
+const orc = require('../../data/oracle');
+const qry = require('../../data/queries');
 
 function loadProgModel(data) {
     let progs = [];
@@ -14,20 +16,21 @@ function loadProgModel(data) {
     return progs;
 }
 
-function getProgs(orc, qry, term) {
+function getProgs(term) {
     return new Promise((resolve, reject) => {
         let params = {
             p1: term
         };
-        orc.proc(qry.getProgs, params, (err, data) => {
-            if (err) reject(err);
+        orc.proc(qry.getProgs, params).then((data) => {
+            if (!data) throw new Error('No results returned from query: Programs');
             let progs = loadProgModel(data);
             resolve(progs);
+        }).catch((err) => {
+            reject(err);
         });
     });
-
 }
 
 module.exports = {
-    get: getProgs
+    getProgs: getProgs
 }

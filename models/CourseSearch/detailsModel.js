@@ -1,38 +1,46 @@
+const orc = require('../../data/oracle');
+const qry = require('../../data/queries');
 
-function getCourseDetails(orc, qry, params) {
+function getCourseDetails(params) {
     return new Promise((resolve, reject) => {
-        try {
-            orc.proc(qry.getCourseDetails, params, (err, data) => {
-                if (err) reject(err);
-                if (!data) {
-                    var e = new Error("The query returned no results. Please try again.");
-                    reject(e);
-                }
-
-                let results = parseResults(data);
-                resolve(results);
+            orc.proc(qry.getCourseDetails, params).then((data) => {
+                if (!data) throw new Error('The query returned no results. Please try again.');
+                resolve(parseResults(data));
+            }).catch((err) => {
+                reject(err);
             });
-        } catch(err) {
-            reject(err);
-        }
     });
 }
 
 function parseResults(data) {
     try {
-        var fees = [];
+        let availTerms = [];
         if (data.length > 0) {
             data.forEach((item) => {
-                var fee = {
-                    label: item[15],
-                    amount: item[16]
+                let term = {
+                    code: item[19],
+                    desc: item[20]
                 };
-                fees.push(fee);
+                availTerms.push(term);
             });
         }
 
-        var res = data[0];
-        var details = {};
+		if (availTerms.length > 0) {
+			availTerms.sort((a, b) => {
+				let descA = a.desc.toUpperCase(); // ignore upper and lowercase
+				let descB = b.desc.toUpperCase(); // ignore upper and lowercase
+				if (descA < descB) {
+				  return -1;
+				}
+				if (descA > descB) {
+				  return 1;
+				}
+				return 0;
+			});
+		}
+
+        let res = data[0];
+        let details = {};
 
         details.Title = res[0];
         details.Code = res[1];
@@ -48,11 +56,12 @@ function parseResults(data) {
         details.Capacity = res[11];
         details.SeatsTaken = res[12];
         details.SeatsRemaining = res[13];
-        details.Fees = fees;
-		details.CoReqs = res[17];
-		details.PreReqs = res[18];
-		details.MajorRest = res[19];
-		details.ProgRest = res[20];
+		details.CoReqs = res[14];
+		details.PreReqs = res[15];
+		details.MajorRest = res[16];
+		details.ProgRest = res[17];
+		details.NotProgRest = res[18];
+		details.AvailTerms = availTerms;
 
         return details;
     } catch(err) {

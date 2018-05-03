@@ -1,13 +1,17 @@
-
-var nullHelper = require('../../helpers/nullcheck');
+const orc = require('../../data/oracle');
+const qry = require('../../data/queries');
+const null_helper = require('../../helpers/nullcheck');
+let moment = require('moment');
 
 function loadSearchResults(data, lkp) {
     let courses = [];
 
     if (data && data.length > 0) {
         for (let row of data) {
+            row = null_helper.nullCheckRow(row);
 
-            row = nullHelper.nullCheckRow(row);
+			let starting = moment(row[17]).add(1, 'hours');
+			let ending = moment(row[16]).add(1, 'hours');
 
             let r = {
                 TermStart: row[0].toString(),
@@ -20,7 +24,7 @@ function loadSearchResults(data, lkp) {
                 SchdCode: row[8],
                 AvailableSeats: row[9],
                 TermWeeks: row[10],
-                Credits: row[11],
+                Credits: row[11].toFixed(1),
                 Room: row[12],
                 BeginTime: row[13],
                 EndTime: row[14],
@@ -32,8 +36,8 @@ function loadSearchResults(data, lkp) {
                 Campus: row[27],
                 Section: {
                     Num: row[7],
-                    StartDate: row[17].toString(),
-                    EndDate: row[16].toString(),
+					StartDate: starting.format('l'),
+					EndDate: ending.format('l'),
                     Sunday: row[18],
                     Monday: row[19],
                     Tuesday: row[20],
@@ -41,7 +45,8 @@ function loadSearchResults(data, lkp) {
                     Thursday: row[22],
                     Friday: row[23],
                     Saturday: row[24]
-                }
+                },
+				ClassType: row[30]
             };
 
             courses.push(r);
@@ -49,15 +54,14 @@ function loadSearchResults(data, lkp) {
     }
 
     courses = prepCourses(courses, lkp);
-
     return courses;
 }
 
 function loadSearchParams(lkp) {
     try {
-        var d = '%';
+        let d = '%';
 
-        if (!nullHelper.nullOrBlank(lkp.delivery.selected)) {
+        if (!null_helper.nullOrBlank(lkp.delivery.selected)) {
             d = lkp.delivery.selected;
             if (online(d)) {
                 d = '%';
@@ -65,17 +69,17 @@ function loadSearchParams(lkp) {
         }
 
         let params = {
-            term: nullHelper.nullOrBlank(lkp.term.selected) ? '%' : lkp.term.selected,
-            dept: nullHelper.nullOrBlank(lkp.department.selected) ? '%' : lkp.department.selected,
-            subject: nullHelper.nullOrBlank(lkp.courseNumber.subject) ? '%' : lkp.courseNumber.subject.toString(),
-            course: nullHelper.nullOrBlank(lkp.courseNumber.course) ? '%' : lkp.courseNumber.course.toString(),
-            section: nullHelper.nullOrBlank(lkp.courseNumber.section) ? '%' : lkp.courseNumber.section.toString(),
-            title: nullHelper.nullOrBlank(lkp.title) ? '%' : lkp.title,
-            campus: nullHelper.nullOrBlank(lkp.location.selected) ? '%' : lkp.location.selected,
+            term: null_helper.nullOrBlank(lkp.term.selected.TermCode) ? '%' : lkp.term.selected.TermCode,
+            dept: null_helper.nullOrBlank(lkp.department.selected) ? '%' : lkp.department.selected,
+            subject: null_helper.nullOrBlank(lkp.courseNumber.subject) ? '%' : lkp.courseNumber.subject.toString(),
+            course: null_helper.nullOrBlank(lkp.courseNumber.course) ? '%' : lkp.courseNumber.course.toString(),
+            section: null_helper.nullOrBlank(lkp.courseNumber.section) ? '%' : lkp.courseNumber.section.toString(),
+            title: null_helper.nullOrBlank(lkp.title) ? '%' : lkp.title,
+            campus: null_helper.nullOrBlank(lkp.location.selected) ? '%' : lkp.location.selected,
             delivery: d,
-            program: nullHelper.nullOrBlank(lkp.program.selected) ? '%' : lkp.program.selected,
-            trmlike: nullHelper.nullOrBlank(lkp.trmlike) ? '%' : lkp.trmlike.toString(),
-            trmnotlike: nullHelper.nullOrBlank(lkp.trmnotlike) ? '%' : lkp.trmnotlike.toString()
+            program: null_helper.nullOrBlank(lkp.program.selected) ? '%' : lkp.program.selected,
+            trmlike: null_helper.nullOrBlank(lkp.trmlike) ? '' : lkp.trmlike.toString(),
+            trmnotlike: null_helper.nullOrBlank(lkp.trmnotlike) ? '' : lkp.trmnotlike.toString()
         };
 
         return params;
@@ -84,24 +88,34 @@ function loadSearchParams(lkp) {
     }
 }
 
-function getResults(orc, lkp, qry) {
+function getResults(lkp) {
     return new Promise((resolve, reject) => {
-        try {
-            let params = loadSearchParams(lkp);
-            orc.proc(qry.getSearchResults, params, (err, data) => {
-                if (err) reject(err);
-                let results = loadSearchResults(data, lkp);
-                resolve(results);
-            });
-        } catch(err) {
+        let params = loadSearchParams(lkp);
+        orc.proc(qry.getSearchResults, params).then((res) => {
+            if (!res || res.length === 0) throw new Error('No search results were returned');
+            resolve(loadSearchResults(res, lkp));
+        }).catch((err) => {
             reject(err);
-        }
+        });
+    });
+}
+
+function getResultsByCourse(lkp) {
+    return new Promise((resolve, reject) => {
+        let filter = loadSearchParams(lkp);
+        let params = { subject: filter.subject, course: filter.course };
+        orc.proc(qry.getResultsByCourse, params).then((res) => {
+            if (!res || res.length === 0) throw new Error('No search results were returned');
+            resolve(loadSearchResults(res, lkp));
+        }).catch((err) => {
+            reject(err);
+        });
     });
 }
 
 function prepCourses(courses, lkp) {
-    var crn = 0;
-    var sort = 0;
+    let crn = 0;
+    let sort = 0;
 
     if (online(lkp.delivery.selected)) {
         courses = courses.filter(function(item) {
@@ -111,8 +125,31 @@ function prepCourses(courses, lkp) {
 
     courses.sort(compare);
 
+	// Sort the dates first.
+	let tempArray = [];
+	courses.forEach((item) => {
+		if (item.CrnKey !== crn) {
+			let group = courses.filter((crs) => { return crs.CrnKey === item.CrnKey});
+			if (group.length !== 0) {
+				group.sort((a, b) => {
+					return new Date(a.Section.StartDate) - new Date(b.Section.StartDate);
+				});
+
+				if (tempArray.length > 0) {
+					tempArray = tempArray.concat(group);
+				} else {
+					tempArray = group;
+				}
+			}
+		}
+		crn = item.CrnKey;
+	});
+
+	courses = tempArray;
+	crn = 0;
+
     courses.forEach(function(item) {
-        item = findDates(item);
+		// item = findDates(item);
 
         item.Weekday = '';
         item = findWeekday(item);
@@ -131,12 +168,12 @@ function prepCourses(courses, lkp) {
 
         item.Fees = item.Fees.trim();
 
-        item.BookLink = "XXXXXXXXXXXXX" +
-            lkp.term.selected + '&div-1=&dept-1=' +
+        item.BookLink = 'http://www.bkstr.com/webapp/wcs/stores/servlet/booklookServlet?bookstore_id-1=798&term_id-1=' +
+            lkp.term.selected.TermCode + '&div-1=&dept-1=' +
             item.SubjectNumber + '&course-1=' +
             item.CourseNumber + '&section-1=' + item.Section.Num;
 
-        if (item.AvailableSeats < 0) {
+        if (item.AvailableSeats < 0 || item.AvailableSeats === '') {
             item.AvailableSeats = 0;
         }
 
@@ -161,37 +198,43 @@ function prepCourses(courses, lkp) {
 }
 
 function findDates(item) {
-    var startDate = new Date(item.Section.StartDate);
-    var endDate = new Date(item.Section.EndDate);
-    item.Section.StartDate = startDate.toLocaleDateString();
-    item.Section.EndDate = endDate.toLocaleDateString();
+    let startDate = new Date(item.Section.StartDate);
+    let endDate = new Date(item.Section.EndDate);
+	item.Section.StartDate = (startDate.getMonth() + 1) + '/' + startDate.getDate() + '/' + startDate.getFullYear();
+	item.Section.EndDate = (endDate.getMonth() + 1) + '/' + endDate.getDate() + '/' + endDate.getFullYear();
     return item;
 }
 
 function findWeekday(item) {
-    var sec = item.Section;
+    let sec = item.Section;
 
     if (sec.Monday !== '') {
-        item.Weekday === '' ? item.Weekday = sec.Monday : item.Weekday += "<br />" + sec.Monday;
-    } else if (sec.Tuesday !== '') {
-        item.Weekday === '' ? item.Weekday = sec.Tuesday : item.Weekday += "<br />" + sec.Tuesday;
-    } else if (sec.Wednesday !== '') {
-        item.Weekday === '' ? item.Weekday = sec.Wednesday : item.Weekday += "<br />" + sec.Wednesday;
-    } else if (sec.Thursday !== '') {
-        item.Weekday === '' ? item.Weekday = 'Th' : item.Weekday += "<br />Th";
-    } else if (sec.Friday !== '') {
-        item.Weekday === '' ? item.Weekday = sec.Friday : item.Weekday += "<br />" + sec.Friday;
-    } else if (sec.Saturday !== '') {
-        item.Weekday === '' ? item.Weekday = sec.Saturday : item.Weekday += "<br />" + sec.Saturday;
-    } else if (sec.Sunday !== '') {
-        item.Weekday === '' ? item.Weekday = sec.Sunday : item.Weekday += "<br />" + sec.Sunday;
+        item.Weekday === '' ? item.Weekday = sec.Monday : item.Weekday += ', ' + sec.Monday;
+    }
+	if (sec.Tuesday !== '') {
+        item.Weekday === '' ? item.Weekday = sec.Tuesday : item.Weekday += ', ' + sec.Tuesday;
+    }
+	if (sec.Wednesday !== '') {
+        item.Weekday === '' ? item.Weekday = sec.Wednesday : item.Weekday += ', ' + sec.Wednesday;
+    }
+	if (sec.Thursday !== '') {
+        item.Weekday === '' ? item.Weekday = 'Th' : item.Weekday += ', Th';
+    }
+	if (sec.Friday !== '') {
+        item.Weekday === '' ? item.Weekday = sec.Friday : item.Weekday += ', ' + sec.Friday;
+    }
+	if (sec.Saturday !== '') {
+        item.Weekday === '' ? item.Weekday = sec.Saturday : item.Weekday += ', ' + sec.Saturday;
+    }
+	if (sec.Sunday !== '') {
+        item.Weekday === '' ? item.Weekday = sec.Sunday : item.Weekday += ', ' + sec.Sunday;
     }
 
     return item;
 }
 
 function findLocation(item) {
-    var location = '';
+    let location = '';
 
     if (item.Building.toUpperCase() === 'TPHI') {
         location = item.Campus;
@@ -205,32 +248,32 @@ function findLocation(item) {
         }
 
         switch(item.SchdCode.toUpperCase()) {
-            case "PBC":
-            case "VBC":
-            case "CD":
-            case "VC1":
+            case 'PBC':
+            case 'VBC':
+            case 'CD':
+            case 'VC1':
                 location = item.DelMethod;
                 break;
 
-            case "VC2":
+            case 'VC2':
                 location = item.DelMethod + "<br />" + location;
                 break;
 
-            case "CBT":
-            case "INT":
-            case "VC3":
-            case "VC4":
-            case "CCN":
-            case "SI":
-            case "RIS":
-            case "TLP":
-            case "TV1":
-            case "TV2":
-            case "WTC":
-            case "WON":
-            case "FE":
-            case "MC":
-                location = "<a href='XXXXXXXXXXXXX' target='_blank'>" + item.DelMethod + "</a><br />" + location;
+            case 'CBT':
+            case 'INT':
+            case 'VC3':
+            case 'VC4':
+            case 'CCN':
+            case 'SI':
+            case 'RIS':
+            case 'TLP':
+            case 'TV1':
+            case 'TV2':
+            case 'WTC':
+            case 'WON':
+            case 'FE':
+            case 'MC':
+                location = "<a href='https://mycvtc.cvtc.edu/site/student/Pages/Ways-of-Learning.aspx' target='_blank'>" + item.DelMethod + '</a><br />' + location;
                 break;
 
             default:
@@ -242,10 +285,10 @@ function findLocation(item) {
 }
 
 function convertTime(item) {
-    var startPeriod = ' AM';
-    var endPeriod = ' AM';
-    var start = parseInt(item.BeginTime);
-    var end = parseInt(item.EndTime);
+    let startPeriod = ' AM';
+    let endPeriod = ' AM';
+    let start = parseInt(item.BeginTime);
+    let end = parseInt(item.EndTime);
 
     if (start >= 1200) {
         startPeriod = ' PM';
@@ -270,9 +313,9 @@ function convertTime(item) {
 }
 
 function parseTime(time) {
-    var s = time.toString();
-    var len = s.length;
-    return s.substring(0, (len - 2)) + ":" + s.substring(len - 2);
+    let s = time.toString();
+    let len = s.length;
+    return s.substring(0, (len - 2)) + ':' + s.substring(len - 2);
 }
 
 function compare(a, b) {
@@ -295,5 +338,6 @@ function online(method) {
 
 
 module.exports = {
-    getResults: getResults
+    getResults: getResults,
+    getResultsByCourse: getResultsByCourse
 }

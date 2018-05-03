@@ -1,16 +1,12 @@
-var mongoose = require('mongoose');
-var termModel = require('./termModel');
-var deptModel = require('./deptModel');
-var progModel = require('./progModel');
-var locModel = require('./locationModel');
-var delvModel = require('./deliveryModel');
-var searchModel = require('./searchModel');
-var detailsModel = require('./detailsModel');
+const term_model = require('./termModel');
+const dept_model = require('./deptModel');
+const prog_model = require('./progModel');
+const loc_model = require('./locationModel');
+const delv_model = require('./deliveryModel');
+const search_model = require('./searchModel');
+const details_model = require('./detailsModel');
 
-var orc = require('../../data/oracle');
-var qry = require('../../data/queries');
-
-var lookup = {
+const lookup = {
     ID: "",
     term: {
         selected: null,
@@ -43,72 +39,87 @@ var lookup = {
     searchResults: []
 };
 
-function getLookup(callback) {
-    var t = ""
+function getLookup() {
+    return new Promise((resolve, reject) => {
+        let t = "";
+        term_model.getTerms().then((data) => {
+            lookup.term.allTerms = data;
 
-    termModel.get(orc, qry).then((data) => {
-        lookup.term.allTerms = data;
+            if (lookup.term.selected && lookup.term.selected.TermCode) {
+                t = lookup.term.selected.TermCode;
+            } else if (lookup.term.allTerms.length > 0) {
+                lookup.term.allTerms.forEach((term) => {
+                    if (term.Default === 'Y') t = term.TermCode;
+                })
+            } else {
+                throw new Error('No term provided for programs');
+            }
+            return dept_model.getActiveDepts(t);
+        }).then((data) => {
+            lookup.department.allDepartments = data;
+            return prog_model.getProgs(t);
+        }).then((data) => {
+            lookup.program.allPrograms = data;
+            return loc_model.getLocations();
+        }).then((data) => {
+            lookup.location.allLocations = data;
+            return delv_model.getDelivery();
+        }).then((data) => {
+            lookup.delivery.allMethods = data;
+            resolve(lookup);
+        }).catch((err) => {
+            reject(err);
+        });
+    });
+}
 
-        if (lookup.term.selected && lookup.term.selected.TermCode) {
-            t = lookup.term.selected.TermCode;
-        } else if (lookup.term.allTerms.length > 0) {
-            lookup.term.allTerms.forEach((term) => {
-                if (term.Default === 'Y') t = term.TermCode;
-            })
+function getResults(lkp) {
+    return new Promise((resolve, reject) => {
+        if (lkp.term.selected) {
+            let term = lkp.term.selected;
+            lkp.trmlike = !term.Like ? '' : term.Like;
+            lkp.trmnotlike = !term.NotLike ? '' : term.NotLike;
+
+            search_model.getResults(lkp).then((results) => {
+                resolve(results);
+            }).catch((err) => {
+                reject(err);
+            });
         } else {
-            callback("No term provided for programs", null);
+            search_model.getResultsByCourse(lkp).then((results) => {
+                resolve(results);
+            }).catch((err) => {
+                reject(err);
+            });
         }
-
-        return deptModel.getActiveDepts(orc, qry, t);
-    }).then((data) => {
-        lookup.department.allDepartments = data;
-        return progModel.get(orc, qry, t);
-    }).then((data) => {
-        lookup.program.allPrograms = data;
-        return locModel.get(orc, qry);
-    }).then((data) => {
-        lookup.location.allLocations = data;
-        return delvModel.get(orc, qry);
-    }).then((data) => {
-        lookup.delivery.allMethods = data;
-        callback(null, lookup);
-    }, (error) => {
-        console.log(error);
-        callback(error, null);
     });
 }
 
-function getResults(lkp, callback) {
-    lkp.trmnotlike = 11;
-
-    searchModel.getResults(orc, lkp, qry).then((results) => {
-        callback(null, results);
-    }, function(err) {
-        callback(err, null);
-    });
-}
-
-function getDeptsProgs(term, callback) {
-    var data = {
+function getDeptsProgs(term) {
+    let data = {
         depts: [],
         progs: []
     };
-    deptModel.getActiveDepts(orc, qry, term).then((results) => {
-        data.depts = results;
-        return progModel.get(orc, qry, term);
-    }).then((results) => {
-        data.progs = results;
-        callback(null, data);
-    }, function(err) {
-        callback(err, null);
+    return new Promise((resolve, reject) => {
+        dept_model.getActiveDepts(term).then((results) => {
+            data.depts = results;
+            return prog_model.getProgs(term);
+        }).then((results) => {
+            data.progs = results;
+            resolve(data);
+        }).catch((err) => {
+            reject(err);
+        });
     });
 }
 
-function getDetails(lkp, callback) {
-    detailsModel.getCourseDetails(orc, qry, lkp).then((results) => {
-        callback(null, results);
-    }).catch((err) => {
-        callback(err, null);
+function getDetails(lkp) {
+    return new Promise((resolve, reject) => {
+        details_model.getCourseDetails(lkp).then((results) => {
+            resolve(results);
+        }).catch((err) => {
+            reject(err);
+        });
     });
 }
 

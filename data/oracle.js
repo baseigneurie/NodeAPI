@@ -1,71 +1,67 @@
-var error = require('../models/Error/error');
-var oracledb = require('oracledb');
+const odb = require('oracledb');
 
-var conn = {
+const _CONN = {
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
     connectString: process.env.DB_CONN
 }
 
-var ptr = { dir: oracledb.BIND_OUT, type: oracledb.CURSOR };
+const _PTR = { dir: odb.BIND_OUT, type: odb.CURSOR };
+const _NBR = { dir: odb.BIND_OUT, type: odb.NUMBER };
+const STR_OUT = { type: odb.STRING, dir: odb.BIND_OUT };
 
-function select(qry, callback) {
-    oracledb.getConnection(
-        conn,
-        (err, connection) => {
-            if (err) return callback(err);
-            connection.execute(
-                qry,
-                (err, result) => {
-                    if (err) {
-                        doRelease(connection);
-                        return callback(err);
-                    }
-                    doRelease(connection);
-                    callback(null, result);
-                }
-            );
-        }
-    );
+// Simple select. Direct results
+function select(qry) {
+    return new Promise((resolve, reject) => {
+        let connection = {};
+        odb.getConnection(_CONN).then((c) => {
+            connection = c;
+            return connection.execute(qry);
+        }).then((result) => {
+            doRelease(connection);
+            resolve(result);
+        }).catch((err) => {
+            doRelease(connection);
+            reject(err);
+        });
+    });
 }
 
-function proc(qry, params, callback) {
-    params.ret = ptr;
-    oracledb.getConnection(
-        conn,
-        (err, connection) => {
-            if (err) return callback(err);
-            connection.execute(
-                qry,
-                params,
-                (err, result) => {
-                    if (err) {
-                        doRelease(connection);
-                        return callback(err);
-                    }
-                    fetchRowsFromRS(connection, result.outBinds.ret, 3000, callback);
-                }
-            );
-        }
-    );
+// Call Procedure
+// This will return a result set. Need to loop through rows into array for parsing.
+function proc(qry, params) {
+    return new Promise((resolve, reject) => {
+        let connection = {};
+        params.ret = _PTR;
+        odb.getConnection(_CONN).then((c) => {
+            connection = c;
+            return connection.execute(qry, params);
+        }).then((result) => {
+            return result.outBinds.ret.getRows(3000);
+        }).then((data) => {
+            doRelease(connection);
+            resolve(data);
+        }).catch((err) => {
+            doRelease(connection);
+            reject(err);
+        });
+    });
 }
 
-function fetchRowsFromRS(connection, rset, num, callback) {
-    rset.getRows(
-        num,
-        (err, rows) => {
-            if (err) {
-                doClose(connection, rset);
-                callback(err);
-            } else if (rows.length > 0) {
-                doClose(connection, rset);
-                callback(null, rows);
-            } else {
-                doClose(connection, rset);
-                callback(null, null);
-            }
-        }
-    );
+function dir_proc(qry, params) {
+    return new Promise((resolve, reject) => {
+        let connection = {};
+        odb.getConnection(_CONN).then((c) => {
+            connection = c;
+            return connection.execute(qry, params);
+        }).then((result) => {
+            doRelease(connection);
+            resolve(result);
+        }).catch((err) => {
+            doRelease(connection);
+            reject(err);
+        });
+    });
 }
 
 function doRelease(connection)
@@ -90,5 +86,7 @@ function doClose(connection, resultSet)
 module.exports = {
     select: select,
     proc: proc,
-    PTR: ptr
+    dir_proc: dir_proc,
+    PTR: _PTR,
+    STR_OUT: STR_OUT
 }

@@ -1,4 +1,6 @@
-# NodeAPI
-A backend API I wrote for CVTC in Node.js. All sensitive info has been replaced with "XXXXX".
+# API
 
-The first and primary use of this API was to retrieve data from an Oracle DB and return it as a JSON object for a front end Course Search application.
+* A back-end api to utilize and store data from multiple sources.
+* This is gather data from Oracle(Banner).
+* This api will be hosted on an internal server and available for any new web applications going forward.
+* This will be taking a MEAN stack approach: utilizing MongoDB, Express, and NodeJS.

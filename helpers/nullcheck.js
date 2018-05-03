@@ -12,14 +12,12 @@ function nullCheckRow(row) {
 }
 
 function nullOrBlank(s) {
-    if (s === null || s === '') {
+    if (s === null || s === '' || !s) {
         return true;
     }
 
     return false;
 }
-
-
 
 module.exports = {
     nullCheckRow: nullCheckRow,

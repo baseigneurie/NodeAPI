@@ -1,3 +1,6 @@
+const orc = require('../../data/oracle');
+const qry = require('../../data/queries');
+
 function loadDeptModel(data) {
     let depts = [];
     if (data && data.length > 0) {
@@ -12,22 +15,17 @@ function loadDeptModel(data) {
     return depts;
 }
 
-function getActiveDepts(orc, qry, term) {
-    var params = { term: term };
-
+function getActiveDepts(term) {
     return new Promise((resolve, reject) => {
-        orc.proc(qry.getActiveDepartments, params, (err, data) => {
-            if (err) reject(err);
-            if (!data) {
-                var e = new Error('No results returned from query.');
-                reject(e);
-            }
-
+        let params = { term: term };
+        orc.proc(qry.getActiveDepartments, params).then((data) => {
+            if (!data) throw new Error('No results returned from query: Departments');
             let depts = loadDeptModel(data);
             resolve(depts);
+        }).catch((err) => {
+            reject(err);
         });
     });
-
 }
 
 module.exports = {

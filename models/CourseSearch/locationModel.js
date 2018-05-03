@@ -1,7 +1,11 @@
+const orc = require('../../data/oracle');
+const qry = require('../../data/queries');
+
 function loadLocations(data) {
     let locs = [];
-    if (data.rows && data.rows.length > 0) {
-        for (let r of data.rows) {
+
+    if (data && data.length > 0) {
+        for (let r of data) {
             let model = {
                 CampCode: r[0],
                 CampDesc: r[1],
@@ -13,17 +17,18 @@ function loadLocations(data) {
     return locs;
 }
 
-function getLocations(orc, qry) {
+function getLocations() {
     return new Promise((resolve, reject) => {
-        orc.select(qry.getLocs, (err, data) => {
-            if (err) reject(err);
+        orc.proc(qry.getLocs, {}).then((data) => {
+            if (!data) throw new Error('No results returned from query: Locations');
             let locs = loadLocations(data);
             resolve(locs);
+        }).catch((err) => {
+            reject(err);
         });
     });
-
 }
 
 module.exports = {
-    get: getLocations
+    getLocations: getLocations
 }
